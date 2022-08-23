@@ -5,9 +5,11 @@ import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Outline
 import android.graphics.Paint
+import android.graphics.Rect
 import android.os.SystemClock
 import android.util.AttributeSet
 import android.view.View
+import android.view.ViewGroup
 import android.view.ViewOutlineProvider
 import androidx.annotation.ColorInt
 import androidx.core.content.ContextCompat
@@ -87,18 +89,18 @@ internal class AnimatedImageItem @JvmOverloads constructor(
      * Set double click
      * @param validDuration 有效点击时间
      */
-    fun setOnDoubleClickListener(validDuration: Long = 1_000, block: () -> Unit) = apply {
-        var hits = LongArray(2)
+    fun setOnDoubleClickListener(validDuration: Long, block: () -> Unit) = apply {
+        var hits = LongArray(3)
         setOnClickListener {
             // 将hits数组内的所有元素左移一个位置
             System.arraycopy(hits, 1, hits, 0, hits.size - 1)
             // 获得当前系统已经启动的时间
-            hits[hits.size - 1] = SystemClock.uptimeMillis()
-            if (hits[0] >= SystemClock.uptimeMillis() - validDuration) {
+            hits[hits.lastIndex] = SystemClock.uptimeMillis()
+            if (hits.last() - hits[1] <= validDuration && hits.last() - hits.first() >= validDuration) {
                 // 相关逻辑操作
                 block()
-                // 初始化点击次数
-                hits = LongArray(2)
+                // 初始化数组点击时间为上一次点击时间
+                hits = hits.flatMap { listOf(hits.last()) }.toLongArray()
             }
         }
     }
@@ -111,6 +113,22 @@ internal class AnimatedImageItem @JvmOverloads constructor(
         setImageDrawable(ContextCompat.getDrawable(context, id))
         tint?.let {
             imageTintList = ColorStateList.valueOf(it)
+        }
+    }
+
+    /**
+     * Set touch delegate
+     */
+    fun setTouchDelegate() {
+        // 解决 clipChildren 超出 parent 部分无法响应点击问题
+        post {
+            val hitRect = Rect()
+            // 获取祖父布局中当前有效可点击区域
+            ViewGroupUtils.getDescendantRect(this.parent.parent as ViewGroup?, this, hitRect)
+            // 扩大布局点击区域
+            hitRect.top -= measuredHeight / 2
+            // 拦截事件分发，将AnimatedImageItem的touch事件委托给父视图
+            (this.parent.parent as ViewGroup?)?.touchDelegate = SimpleTouchDelegate(hitRect, this)
         }
     }
 }

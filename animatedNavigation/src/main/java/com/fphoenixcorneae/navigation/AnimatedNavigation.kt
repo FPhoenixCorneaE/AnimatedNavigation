@@ -61,8 +61,6 @@ class AnimatedNavigation @JvmOverloads constructor(
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        // not to clip children to their bounds
-        disableClipChildren()
         // set background
         mAnimatedImageItem.post {
             mConcaveView.setBackground(0f, (mAnimatedImageItem.left + mAnimatedImageItem.right) / 2f)
@@ -126,9 +124,9 @@ class AnimatedNavigation @JvmOverloads constructor(
                 mItemWidth * position.toFloat() to translationY
             ).apply {
                 addUpdateListener {
-                    val translation = it.animatedValue as Pair<Float, Float>
-                    translationX = translation.first
-                    translationY = translation.second
+                    val translation = it.animatedValue as Pair<*, *>
+                    translationX = translation.first as Float
+                    translationY = translation.second as Float
 
                     // 根据translationX的值，去设置item的透明度
                     mItems.forEach { imageTextItem ->
@@ -168,13 +166,20 @@ class AnimatedNavigation @JvmOverloads constructor(
                 duration = DEFAULT_ANIMATED_DURATION
                 interpolator = LinearInterpolator()
                 play(translationAnimator).with(iconUpdateAnimator).before(rotationAnimator)
+                removeAllListeners()
                 addListener(
                     onStart = {
                         isAnimatorStarting = true
+                        // 设置translationZ使ConcaveView覆盖AnimatedImageItem
+                        translationZ = mConcaveView.elevation + mConcaveView.translationZ - elevation - 1
                     },
                     onEnd = {
                         isAnimatorStarting = false
                         mCurrentIndex = position
+                        // 设置translationZ使AnimatedImageItem层级高于ImageTextItem，防止点击事件被ImageTextItem覆盖
+                        translationZ = mConcaveView.elevation + mConcaveView.translationZ + 2
+                        // 因为位置改变了，所以需要重新设置触摸事件代理
+                        setTouchDelegate()
                     },
                     onCancel = {
                         translationX = 0f
@@ -211,16 +216,26 @@ class AnimatedNavigation @JvmOverloads constructor(
         mItems.addAll(items)
         mConcaveView.let { super.addView(it) }
         items.forEachIndexed { index, imageTextItem ->
-            // 层级在ConcaveView之上，否则会被其覆盖
-            imageTextItem.translationZ = mConcaveView.elevation + mConcaveView.translationZ + 1
-            super.addView(imageTextItem)
-            imageTextItem.setOnClickListener(this)
+            imageTextItem.let {
+                super.addView(it)
+                // 设置translationZ使ImageTextItem层级高于ConcaveView，防止被ConcaveView覆盖
+                it.translationZ = mConcaveView.elevation + mConcaveView.translationZ + 1
+                it.setOnClickListener(this)
+            }
             if (index == 0) {
                 imageTextItem.alpha = 0f
                 mAnimatedImageItem.loadData(
                     imageTextItem.getIconResource(),
                     imageTextItem.getSelectedColorTint()
-                ).also { super.addView(it) }
+                ).also {
+                    super.addView(it)
+                    // not to clip children to their bounds
+                    disableClipChildren()
+                    // 设置translationZ使AnimatedImageItem层级高于ImageTextItem，防止点击事件被ImageTextItem覆盖
+                    it.translationZ = mConcaveView.elevation + mConcaveView.translationZ + 2
+                    // 设置触摸事件代理
+                    it.setTouchDelegate()
+                }
             }
         }
         requestLayout()
@@ -253,7 +268,9 @@ class AnimatedNavigation @JvmOverloads constructor(
      */
     fun setOnAnimatedItemDoubleClickListener(validDuration: Long = 1_000, block: (Int) -> Unit) = apply {
         mAnimatedImageItem.setOnDoubleClickListener(validDuration) {
-            block(getCurrentIndex())
+            if (!isAnimatorStarting) {
+                block(getCurrentIndex())
+            }
         }
     }
 
