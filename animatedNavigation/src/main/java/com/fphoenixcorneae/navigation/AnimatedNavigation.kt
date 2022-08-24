@@ -6,6 +6,7 @@ import android.animation.PropertyValuesHolder
 import android.animation.ValueAnimator
 import android.content.Context
 import android.content.res.ColorStateList
+import android.content.res.Resources
 import android.util.AttributeSet
 import android.view.View
 import android.view.ViewGroup
@@ -57,6 +58,31 @@ class AnimatedNavigation @JvmOverloads constructor(
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
         // measure children
         measureChildren(widthMeasureSpec, heightMeasureSpec)
+        val widthSpecMode = MeasureSpec.getMode(widthMeasureSpec)
+        var widthSpecSize = MeasureSpec.getSize(widthMeasureSpec)
+        val heightSpecMode = MeasureSpec.getMode(heightMeasureSpec)
+        var heightSpecSize = MeasureSpec.getSize(heightMeasureSpec)
+        when (widthSpecMode) {
+            MeasureSpec.AT_MOST -> {
+                // 相当于设置为wrap_content
+                widthSpecSize = Resources.getSystem().displayMetrics.widthPixels
+            }
+            MeasureSpec.EXACTLY -> {
+                // 相当于设置为match_parent或者为一个具体的值
+            }
+            MeasureSpec.UNSPECIFIED -> {}
+        }
+        when (heightSpecMode) {
+            MeasureSpec.AT_MOST -> {
+                // 相当于设置为wrap_content
+                heightSpecSize = Utils.dp2Px(60f)
+            }
+            MeasureSpec.EXACTLY -> {
+                // 相当于设置为match_parent或者为一个具体的值
+            }
+            MeasureSpec.UNSPECIFIED -> {}
+        }
+        setMeasuredDimension(widthSpecSize, heightSpecSize)
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
